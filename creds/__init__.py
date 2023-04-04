@@ -39,6 +39,7 @@ except:
         raise Exception("smugcli needed")
 
 
+#Override ls2 from the library to be what I want
 def ls2(self, user, path, details):
     user = user or self._smugmug.get_auth_user()
     matched_nodes, unmatched_dirs = self.path_to_node(user, path)
