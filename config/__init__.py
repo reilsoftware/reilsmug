@@ -1,19 +1,14 @@
 import argparse
 from pathlib import Path
 import os
+import json
 import pickle
 
 class config:
     def __init__(self):
         self.config=self.get_config()
         self.check_config(self.config)
-        print(self.config)
-        if self.config['verbose']>0:
-            print("-"*30)
-            print("Running with the following configuration")
-            for k in self.config.keys():
-                print(k,self.config[k])
-            print("-"*30)
+
     def check_config(self,config):
         # Must have a photo_directory
         test=config['photo_directory']
@@ -23,29 +18,59 @@ class config:
         test=config['api_key']
         if test==None:
             raise Exception("Cannot run without api_key, use --api_key")
+
+        if config['login']: return True
         #Must be logged in
-        test=config['oath_secret']
+        try:
+            test=config['oath_secret']
+        except:
+            raise Exception("No Oath Secret run login first")
         if test==None:
             raise Exception("No Oath Secret run login first")
         #Must be logged in
-        test=config['access_token']
+        try:
+            test=config['access_token']
+        except:
+            raise Exception("No access_token run login first")
         if test==None:
             raise Exception("No access_token run login first")
-        
-            
 
-    def get_config(self):
 
+    def load_config(self,name=".config"):
+        # Make directory configurable?
         home_dir=str(Path.home())
         config_dir=os.path.join(home_dir,".smug")
-        config_file=os.path.join(config_dir,".config")
+        config_file=os.path.join(config_dir,name)
+
         if not os.path.exists(config_dir): os.makedirs(config_dir)
         try:
-            config=pickle.load(open(config_file,"rb"))
-            print("Loaded config from",config_file)
-            print(config)
+            self.config=pickle.load(open(config_file,"rb"))
         except:
-            config={}
+            print("Failed to load",config_file)
+            self.config={}
+        self.config['config_file']=config_file
+
+        return self.config
+        
+    def save_config(self,configin,name=".config"):
+        # Make directory configurable?
+        home_dir=str(Path.home())
+        config_dir=os.path.join(home_dir,".smug")
+        config_file=os.path.join(config_dir,name)
+
+        # Create the config directory if needed
+        if not os.path.exists(config_dir): os.makedirs(config_dir)
+        pickle.dump(configin,open(config_file,"wb"))
+        
+    def print_config(self):
+        for k in self.config.keys():
+            print("   ",k,self.config[k])
+
+    def add(self,k,kw):
+        self.config[k]=kw
+
+    def get_config(self):
+        config=self.load_config()
 
         store_list=[]
         store_list.append("api_key")
@@ -63,6 +88,8 @@ class config:
         parser.add_argument("-v", "--verbose",
                             action="count", default=0,
                             help="increase output verbosity")
+
+        home_dir=str(Path.home())
         parser.add_argument("--search_directory",
                             default=os.path.join(home_dir,
                                                  "Pictures","sort"),
@@ -76,24 +103,30 @@ class config:
                             action="store_true",
                             default=False,
                             help="Testmode - do not move/copy/etc")
+        parser.add_argument("--login",
+                            action="store_true",
+                            default=False,
+                            help="Needs to be run once on first execution")
 
         args=parser.parse_args()
 
+        if args.__dict__['verbose']>=1:
+            print("Config file contents were",config['config_file'])
+            self.print_config()
 
-        config['config_file']=config_file
         # Copy args keys into config dictionary
         for k in args.__dict__.keys():
             config[k]=args.__dict__[k]
 
         # If verbose 2 then print out config
         if config['verbose']>=1:
-            for k in args.__dict__.keys():
-                print("   ",k,args.__dict__[k])
+            print("Update config are")
+            self.print_config()
 
+        #Only specified keys will be stored
         out_config={}
         for k in store_list:
             if k in config.keys(): out_config[k]=config[k]
-            pickle.dump(out_config,open(config_file,"wb"))
-        if config['verbose']>=1: print("Saved",config_file)
+        self.save_config(out_config)
     
         return config

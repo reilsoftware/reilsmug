@@ -8,18 +8,35 @@ if not os.path.exists(CREDDIR):
     os.makedirs(CREDDIR)
 
 # Google cloud
-from google.cloud import storage
+try:
+    from google.cloud import storage
+except:
+    if 1==1:
+        print("Google cloud will not work")
+    else:
+        raise Exception("Google cloud library needed")
+
 
 # google photos
-from gphotospy import authorize
-from gphotospy.album import Album
-from gphotospy.media import Media
+try:
+    from gphotospy import authorize
+    from gphotospy.album import Album
+    from gphotospy.media import Media
+except:
+    if 1==1:
+        print("gphotospy will not work")
+    else:
+        raise Exception("gphotospy needed")
 
-#smugmug command line interface
-#from smugcli import smugmug_oauth
-import smugcli
-from smugcli import smugmug as smugmug_lib
-from smugcli.smugmug_fs import SmugMugFS
+try:
+    import smugcli
+    from smugcli import smugmug as smugmug_lib
+    from smugcli.smugmug_fs import SmugMugFS
+except:
+    if 1==1:
+        print("smugcli will not work")
+    else:
+        raise Exception("smugcli needed")
 
 
 def ls2(self, user, path, details):
@@ -42,42 +59,56 @@ def ls2(self, user, path, details):
 SmugMugFS.ls2=ls2
     
 def create_google():
-    pass
+    #https://developers.google.com/photos/library/guides/get-started#configure-app
+    CREDDIR=os.path.join(homedir,".smug","google_credentials.json")
+    print("Go to https://developers.google.com/photos/library/guides/get-started#configure-app and save to",CREDDIR)
+    return None
 
 def get_google_photo():
-    CREDDIR=os.path.join(homedir,".smug","kevin.reil.photos.cred")
-    service = authorize.init(CREDDIR)
-    album_manager = Album(service)
-    media_manager = Media(service)
-    return album_manager,media_manager
+    try:
+        CREDDIR=os.path.join(homedir,".smug","google_credentials.json")
+        service = authorize.init(CREDDIR)
+        album_manager = Album(service)
+        media_manager = Media(service)
+        return album_manager,media_manager
+    except:
+        return create_google()
 
 def get_google():
-    CREDDIR=os.path.join(homedir,".smug","google-service-account-key.json")
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS']=CREDDIR
-    googleclient = storage.Client()
-    return googleclient
-
-def create_smug(config):
-    api_key=config['api_key']
-    oauth_secret=config['oauth_secret']
+    try:
+        CREDDIR=os.path.join(homedir,".smug","google-service-account-key.json")
+        if not os.path.exists(CREDDIR):
+            create_google()
+            raise Exception("Need to create creddir")
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS']=CREDDIR
+        googleclient = storage.Client()
+        return googleclient
+    except:
+        return None
     
-    SMUGCREDDIR=os.path.join(homedir,".smug","smug.json")
+def create_smug(configin):
+    api_key=configin['api_key']
+    oauth_secret=configin['oauth_secret']    
+    auth_file=os.path.join(homedir,".smug","smuglogin.json")
     try:
         # Read in prior config
-        with open(SMUGCREDDIR, "r") as infile:
+        with open(auth_file, "r") as infile:
             config=json.loads(infile.read())
         smugmug = smugmug_lib.SmugMug(config)
         fs = SmugMugFS(smugmug)
         print("Loaded prior smumug login")
     except:
+        # Generate credentials by logging in
+        print("Creating and saving smugmug login. Need only one time.")
         smugmug = smugmug_lib.SmugMug(config=dict())
         fs = SmugMugFS(smugmug)
-        fs.smugmug.login((api_key, oauth_secret))
-        with open(SMUGCREDDIR, "w") as outfile:
+        fs.smugmug.login(api_key)
+        print("JSON",json.dumps(fs.smugmug.config))
+        with open(auth_file, "w") as outfile:
             outfile.write(json.dumps(fs.smugmug.config))
-        print("Saved smumug login")
+        print("Saved smumug login for later use.")
     finally:
         return fs
 
-def get_smug(config):
-    return create_smug(config)
+def get_smug(configin):
+    return create_smug(configin)
